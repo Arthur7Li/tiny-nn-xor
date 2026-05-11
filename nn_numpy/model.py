@@ -156,3 +156,19 @@ class NeuralNetwork:
         """
         probs = self.forward(X)
         return (probs >= threshold).astype(float)
+    
+
+# Example usage
+if __name__ == "__main__":
+    np.random.seed(42)
+
+    # Dummy dataset: 10 samples, 2 features
+    X = np.random.randn(10, 2)
+    y = (np.sum(X, axis=1) > 0).astype(float).reshape(-1, 1)  # arbitrary labels
+
+    model = NeuralNetwork(input_dim=2, hidden_dim=4, learning_rate=0.1)
+    losses = model.fit(X, y, epochs=50, verbose=True)
+
+    y_pred = model.predict(X)
+    print("Predictions:\n", y_pred.T)
+    print("True labels:\n", y.T)
