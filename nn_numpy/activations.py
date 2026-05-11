@@ -73,6 +73,41 @@ def relu_derivative(x: np.ndarray) -> np.ndarray:
     grad[x > 0] = 1.0
     return grad
 
+def tanh(x: np.ndarray) -> np.ndarray:
+    """
+    Hyperbolic tangent activation function.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input array.
+
+    Returns
+    -------
+    np.ndarray
+        Output array with tanh applied elementwise.
+    """
+    return np.tanh(x)
+
+
+def tanh_derivative(x: np.ndarray) -> np.ndarray:
+    """
+    Derivative of tanh activation with respect to x.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input array (pre-activation).
+
+    Returns
+    -------
+    np.ndarray
+        Derivative d(tanh)/dx evaluated at x.
+    """
+    t = np.tanh(x)
+    return 1.0 - t**2
+
+
 # For testing purposes
 if __name__ == "__main__":
     x = np.array([[-1.0, 0.0, 1.0],

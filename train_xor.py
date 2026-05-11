@@ -13,8 +13,8 @@ def main() -> None:
     X, y = load_xor()
 
     # 2. Initialize model
-    # 2 inputs -> 4 hidden units -> 1 output
-    model = NeuralNetwork(input_dim=2, hidden_dim=4, learning_rate=0.1)
+    # 2 inputs -> 8 hidden units -> 1 output
+    model = NeuralNetwork(input_dim=2, hidden_dim=8, learning_rate=0.1)
 
     # 3. Train
     epochs = 5000

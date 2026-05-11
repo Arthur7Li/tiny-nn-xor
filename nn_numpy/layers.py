@@ -17,11 +17,14 @@ class Dense:
         Bias vector of shape (1, output_dim).
     """
 
-    def __init__(self, input_dim: int, output_dim: int, weight_scale: float = 0.01):
+    def __init__(self, input_dim: int, output_dim: int, weight_scale: float | None = None):
         self.input_dim = input_dim
         self.output_dim = output_dim
 
-        # Small random initialization, common for simple NNs.
+        # Use Xavier-style initialization by default for tanh/sigmoid networks.
+        if weight_scale is None:
+            weight_scale = np.sqrt(1.0 / input_dim)
+
         self.W = weight_scale * np.random.randn(input_dim, output_dim)
         self.b = np.zeros((1, output_dim))
 
@@ -42,6 +45,9 @@ class Dense:
         np.ndarray
             Output of shape (n_samples, output_dim).
         """
+        assert x.ndim == 2 and x.shape[1] == self.input_dim, (
+            f"Dense.forward expected input shape (*,{self.input_dim}), got {x.shape}"
+        )
         self._x = x  # cache input for use in backward pass
         return x @ self.W + self.b  # (n_samples, input_dim) @ (input_dim, output_dim)
 
@@ -64,6 +70,11 @@ class Dense:
             shape (n_samples, input_dim).
         """
         x = self._x  # (n_samples, input_dim)
+        assert x is not None, "Dense.backward called before forward"
+        assert dout.ndim == 2 and dout.shape[1] == self.output_dim, (
+            f"Dense.backward expected dout shape (*,{self.output_dim}), got {dout.shape}"
+        )
+
         n_samples = x.shape[0]
 
         # Gradients of loss w.r.t. parameters
@@ -77,7 +88,7 @@ class Dense:
         # dL/dx = dout @ W^T
         dx = dout @ self.W.T  # (n_samples, output_dim) @ (output_dim, input_dim)
 
-        # Gradient descent parameter update
+        # Gradient descent parameter update (average over batch)
         self.W -= learning_rate * dW / n_samples
         self.b -= learning_rate * db / n_samples
 

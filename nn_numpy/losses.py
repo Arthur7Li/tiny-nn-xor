@@ -1,51 +1,63 @@
 import numpy as np
 
 
-def mse_loss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+def binary_crossentropy(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-12) -> float:
     """
-    Mean squared error (MSE) loss.
+    Binary cross-entropy (BCE) loss for targets in {0,1} and predictions in (0,1).
 
     Parameters
     ----------
     y_true : np.ndarray
-        True target values, shape (n_samples, 1) or (n_samples,).
+        True binary labels, shape (n_samples, 1) or (n_samples,).
     y_pred : np.ndarray
-        Predicted values, same shape as y_true.
+        Predicted probabilities, same shape as y_true.
+    eps : float
+        Small constant to avoid log(0).
 
     Returns
     -------
     float
-        Scalar MSE loss.
+        Scalar BCE loss.
     """
-    # Ensure both are 2D column vectors for simplicity
     y_true = y_true.reshape(-1, 1)
     y_pred = y_pred.reshape(-1, 1)
 
-    return float(np.mean((y_true - y_pred) ** 2))
+    # Clip predictions to avoid log(0)
+    y_pred = np.clip(y_pred, eps, 1.0 - eps)
+
+    # BCE: -(1/n) * sum( y*log(p) + (1-y)*log(1-p) )
+    loss = -np.mean(y_true * np.log(y_pred) + (1.0 - y_true) * np.log(1.0 - y_pred))
+    return float(loss)
 
 
-def mse_loss_derivative(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+def binary_crossentropy_derivative(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     """
-    Derivative of the MSE loss with respect to y_pred.
+    Derivative of BCE loss with respect to y_pred.
 
     Parameters
     ----------
     y_true : np.ndarray
-        True target values, shape (n_samples, 1) or (n_samples,).
+        True binary labels.
     y_pred : np.ndarray
-        Predicted values, same shape as y_true.
+        Predicted probabilities.
+    eps : float
+        Small constant to avoid division by zero.
 
     Returns
     -------
     np.ndarray
-        Gradient dL/dy_pred with same shape as y_pred.
+        Gradient dL/dy_pred, same shape as y_pred.
     """
     y_true = y_true.reshape(-1, 1)
     y_pred = y_pred.reshape(-1, 1)
 
-    n_samples = y_true.shape[0]
-    # d/dy_pred (1/n * sum (y_true - y_pred)^2) = 2/n * (y_pred - y_true)
-    return (2.0 / n_samples) * (y_pred - y_true)
+    y_pred = np.clip(y_pred, eps, 1.0 - eps)
+
+    # Note: the loss itself is averaged across samples, but we keep the
+    # gradient as the derivative of the summed loss. The parameter updates
+    # are averaged inside Dense.backward.
+    grad = -(y_true / y_pred - (1.0 - y_true) / (1.0 - y_pred))
+    return grad
 
 
 # For testing purposes
@@ -59,10 +71,10 @@ if __name__ == "__main__":
                        [0.4],
                        [0.1]])
 
-    loss = mse_loss(y_true, y_pred)
-    grad = mse_loss_derivative(y_true, y_pred)
+    loss = binary_crossentropy(y_true, y_pred)
+    grad = binary_crossentropy_derivative(y_true, y_pred)
 
     print("y_true:\n", y_true)
     print("y_pred:\n", y_pred)
-    print("MSE loss:", loss)
+    print("BCE loss:", loss)
     print("dL/dy_pred:\n", grad)

@@ -1,8 +1,8 @@
 import numpy as np
 
 from .layers import Dense
-from .activations import relu, relu_derivative, sigmoid
-from .losses import mse_loss, mse_loss_derivative
+from .activations import sigmoid, tanh, tanh_derivative
+from .losses import binary_crossentropy, binary_crossentropy_derivative
 
 
 class NeuralNetwork:
@@ -10,7 +10,7 @@ class NeuralNetwork:
     A simple 2-layer neural network for binary classification.
 
     Architecture:
-        input_dim -> hidden_dim (ReLU) -> 1 output (sigmoid)
+        input_dim -> hidden_dim (tanh) -> 1 output (sigmoid)
     """
 
     def __init__(self, input_dim: int, hidden_dim: int, learning_rate: float = 0.1):
@@ -22,7 +22,7 @@ class NeuralNetwork:
 
         # Caches for forward pass (pre-activations)
         self._z1 = None  # pre-activation for layer1
-        self._a1 = None  # activation after layer1 (ReLU)
+        self._a1 = None  # activation after layer1 (tanh)
         self._z2 = None  # pre-activation for layer2
         self._a2 = None  # output after sigmoid
 
@@ -40,9 +40,13 @@ class NeuralNetwork:
         np.ndarray
             Output probabilities of shape (n_samples, 1).
         """
-        # First layer: linear -> ReLU
+        assert X.ndim == 2 and X.shape[1] == self.layer1.input_dim, (
+            f"NeuralNetwork.forward expected input shape (*,{self.layer1.input_dim}), got {X.shape}"
+        )
+
+        # First layer: linear -> tanh
         self._z1 = self.layer1.forward(X)
-        self._a1 = relu(self._z1)
+        self._a1 = tanh(self._z1)
 
         # Second layer: linear -> sigmoid
         self._z2 = self.layer2.forward(self._a1)
@@ -59,7 +63,7 @@ class NeuralNetwork:
             True labels, shape (n_samples, 1) or (n_samples,).
         """
         # Gradient of loss w.r.t. output (a2)
-        dL_da2 = mse_loss_derivative(y_true, self._a2)  # (n_samples, 1)
+        dL_da2 = binary_crossentropy_derivative(y_true, self._a2)  # (n_samples, 1)
 
         # For sigmoid, derivative w.r.t. z2 is:
         # dL/dz2 = dL/da2 * da2/dz2
@@ -70,8 +74,10 @@ class NeuralNetwork:
         # Backprop through second dense layer
         dL_da1 = self.layer2.backward(dL_dz2, learning_rate=self.learning_rate)
 
-        # ReLU derivative on z1
-        dz1 = relu_derivative(self._z1)  # 1 where z1 > 0, else 0
+        assert self._z1 is not None, "Forward pass must be called before backward"
+
+        # tanh derivative on z1
+        dz1 = tanh_derivative(self._z1)
         dL_dz1 = dL_da1 * dz1
 
         # Backprop through first dense layer
@@ -79,7 +85,7 @@ class NeuralNetwork:
 
     def compute_loss(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         """
-        Compute the MSE loss.
+        Compute the binary cross-entropy loss.
 
         Parameters
         ----------
@@ -93,7 +99,7 @@ class NeuralNetwork:
         float
             Scalar loss.
         """
-        return mse_loss(y_true, y_pred)
+        return binary_crossentropy(y_true, y_pred)
 
     def fit(
         self,
