@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 from nn_numpy.datasets import load_xor
 from nn_numpy.model import NeuralNetwork
+from nn_numpy.visualize import plot_decision_boundary
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,19 +31,28 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir", type=str, default=".",
-        help="Directory to save the loss-curve plot in (default: current directory).",
+        help="Directory to save plots in (default: current directory).",
     )
     parser.add_argument(
         "--plot-name", type=str, default="train_run.png",
         help="Filename for the saved loss-curve plot (default: train_run.png).",
     )
     parser.add_argument(
+        "--boundary-plot-name", type=str, default="decision_boundary_xor.png",
+        help="Filename for the saved decision-boundary plot "
+             "(default: decision_boundary_xor.png).",
+    )
+    parser.add_argument(
         "--no-save-plot", action="store_true",
         help="Skip saving the loss-curve plot to disk.",
     )
     parser.add_argument(
+        "--no-save-boundary-plot", action="store_true",
+        help="Skip saving the decision-boundary plot to disk.",
+    )
+    parser.add_argument(
         "--show", action="store_true",
-        help="Display the loss-curve plot interactively (blocks until closed). "
+        help="Display plots interactively (blocks until closed). "
              "Off by default so the script also runs headless/in CI.",
     )
     return parser.parse_args()
@@ -79,6 +89,9 @@ def main() -> None:
     print("True labels:\n", y)
     print(f"Training accuracy on XOR: {accuracy * 100:.1f}%")
 
+    if not args.no_save_plot or not args.no_save_boundary_plot:
+        os.makedirs(args.output_dir, exist_ok=True)
+
     # 5. Plot loss curve
     plt.figure()
     plt.plot(losses)
@@ -92,10 +105,22 @@ def main() -> None:
     plt.tight_layout()
 
     if not args.no_save_plot:
-        os.makedirs(args.output_dir, exist_ok=True)
         save_path = os.path.join(args.output_dir, args.plot_name)
         plt.savefig(save_path)
         print(f"Saved loss curve to {save_path}")
+
+    # 6. Plot decision boundary
+    fig, ax = plt.subplots(figsize=(6, 5))
+    plot_decision_boundary(
+        model, X, y, resolution=300, ax=ax,
+        title=f"XOR decision boundary (acc={accuracy * 100:.0f}%)",
+    )
+    fig.tight_layout()
+
+    if not args.no_save_boundary_plot:
+        boundary_path = os.path.join(args.output_dir, args.boundary_plot_name)
+        fig.savefig(boundary_path)
+        print(f"Saved decision boundary to {boundary_path}")
 
     if args.show:
         plt.show()
