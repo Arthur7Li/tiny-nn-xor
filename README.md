@@ -1,13 +1,19 @@
 # Tiny Neural Network from Scratch (NumPy)
 
-Implementing a tiny neural network **from scratch in NumPy** to solve the classic XOR problem.  
+[![CI](https://github.com/Arthur7Li/tiny-nn-xor/actions/workflows/ci.yml/badge.svg)](https://github.com/Arthur7Li/tiny-nn-xor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
+Implementing a tiny neural network **from scratch in NumPy** to solve the classic XOR problem, then extending it to nonlinear 2D toy datasets.
 This project is designed as an educational intro to:
 
 - How a 2-layer neural network performs a **forward pass**
 - How **backpropagation** computes gradients for each parameter
 - How a simple **training loop** with gradient descent can learn a nonlinear function
+- How to verify those gradients are actually correct with numerical **gradient checking**
+- How to visualize what the network learned via its **decision boundary**
 
-No deep learning frameworks (PyTorch, TensorFlow, Keras) are used—only NumPy.
+No deep learning frameworks (PyTorch, TensorFlow, Keras, scikit-learn) are used—only NumPy and Matplotlib.
 
 ---
 
@@ -16,18 +22,21 @@ No deep learning frameworks (PyTorch, TensorFlow, Keras) are used—only NumPy.
 ```text
 .
 ├── nn_numpy/
-│   ├── __init__.py
+│   ├── __init__.py       # Public API: NeuralNetwork, Dense, load_xor, load_circles, load_moons, plot_decision_boundary
 │   ├── activations.py    # sigmoid, tanh, ReLU and their derivatives
-│   ├── datasets.py       # XOR dataset helper
+│   ├── datasets.py       # XOR, circles, and moons dataset helpers
 │   ├── layers.py         # Dense layer (fully connected) with forward/backward
-│   ├── losses.py         # MSE and binary cross-entropy losses + derivatives
-│   └── model.py          # NeuralNetwork class and training loop
-├── train_xor.py          # Entry point: trains the model on XOR
+│   ├── losses.py         # Binary cross-entropy loss + derivative
+│   ├── model.py          # NeuralNetwork class and training loop
+│   └── visualize.py      # Decision-boundary plotting
+├── tests/                # pytest suite: gradient checks + sanity checks (22 tests)
+├── train_xor.py          # Entry point: trains on XOR, saves loss curve + decision boundary
+├── train_toy.py          # Entry point: trains on circles/moons, saves loss curve + decision boundary
+├── pyproject.toml        # Packaging (pip install -e .) + pytest/ruff config
 ├── requirements.txt
+├── .github/workflows/ci.yml  # Runs the test suite on Python 3.10–3.12 on every push/PR
 └── README.md
 ```
-
-At a high level, `train_xor.py` loads the XOR data, builds a small MLP using `nn_numpy.model.NeuralNetwork`, trains it, prints accuracy, and plots the training loss.
 
 ---
 
@@ -36,8 +45,8 @@ At a high level, `train_xor.py` loads the XOR data, builds a small MLP using `nn
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/<your-username>/<this-repo-name>.git
-cd <this-repo-name>
+git clone https://github.com/Arthur7Li/tiny-nn-xor.git
+cd tiny-nn-xor
 ```
 
 ### 2. Create and activate a virtual environment
@@ -52,8 +61,16 @@ python -m venv .venv
 
 ### 3. Install dependencies
 
+Either install just the runtime dependencies:
+
 ```bash
 pip install -r requirements.txt
+```
+
+Or install the package itself (recommended—this also gives you `import nn_numpy` from anywhere and pulls in test/lint tools):
+
+```bash
+pip install -e ".[dev]"
 ```
 
 ### 4. Train on XOR
@@ -62,7 +79,30 @@ pip install -r requirements.txt
 python train_xor.py
 ```
 
-You should see the loss decreasing over epochs and the final training accuracy reported as 100% for the improved model.
+This prints the training loss every 100 epochs, reports final accuracy (100% for the current model), and saves `train_run.png` (loss curve) and `decision_boundary_xor.png` (decision boundary) to the current directory. Useful flags:
+
+```bash
+python train_xor.py --hidden-dim 8 --epochs 5000 --learning-rate 0.1 --seed 42 --output-dir artifacts
+```
+
+Run `python train_xor.py --help` for the full list of options.
+
+### 5. Train on a nonlinear 2D toy dataset
+
+```bash
+python train_toy.py --dataset moons
+python train_toy.py --dataset circles
+```
+
+Since XOR only has 4 points, `train_toy.py` trains the same `NeuralNetwork` on 200-point circles/moons datasets (generated with pure NumPy, no scikit-learn) and plots the resulting decision boundary—a much more visually convincing demonstration that the network learns genuinely nonlinear separators.
+
+### 6. Run the test suite
+
+```bash
+pytest -v
+```
+
+22 tests cover numerical gradient checks for every activation, the loss function, the `Dense` layer, and the full network end-to-end, plus dataset and visualization sanity checks. CI runs this suite automatically on Python 3.10, 3.11, and 3.12 for every push and pull request.
 
 ---
 
@@ -77,6 +117,8 @@ For XOR, the network uses a simple **2-layer MLP**:
   - Activation: **tanh** in the final version (ReLU in the initial version)  
 - Output layer: 1 unit  
   - Activation: **sigmoid**, interpreted as a probability in \([0, 1]\)
+
+The same architecture is reused unchanged for the circles/moons datasets—only the hidden width and learning rate are tuned via CLI flags.
 
 Mathematically:
 
@@ -100,15 +142,13 @@ Mathematically:
 ### Forward and backward passes
 
 - **Forward pass**: `NeuralNetwork.forward(X)` computes these steps and caches intermediate values (`z1`, `a1`, `z2`, `a2`) for backprop.  
-- **Loss**:
-  - v0.1: mean squared error (MSE)  
-  - v0.2: **binary cross-entropy (BCE)**, more appropriate for sigmoid outputs  
+- **Loss**: binary cross-entropy (BCE), appropriate for the sigmoid output.
 - **Backward pass**: `NeuralNetwork.backward(y_true)`:
   - Starts from the derivative of the loss with respect to the output (`dL/dy_pred`)
   - Applies the derivative of the sigmoid and tanh to propagate gradients back to `W2`, `b2`, `W1`, and `b1`
   - Uses the `Dense.backward` method to compute gradients and apply gradient descent updates
 
-All operations are implemented with NumPy array math; no automatic differentiation is used.
+All operations are implemented with NumPy array math; no automatic differentiation is used. Every gradient in this repo is checked against finite differences in `tests/` rather than assumed correct.
 
 ---
 
@@ -118,43 +158,28 @@ A key goal of this project is to show the **iterative improvement** of a simple 
 
 ### v0.1 – First working model (75% accuracy)
 
-- Architecture:  
-  - Input → **4 ReLU** hidden units → 1 sigmoid output  
+- Architecture: Input → **4 ReLU** hidden units → 1 sigmoid output  
 - Loss: **MSE (mean squared error)**  
-- Initialization: small random weights, zero biases  
-- Result:  
-  - Training loss decreases slowly from ~0.25  
-  - Final training accuracy: **75%** on XOR (3/4 points correct)  
-- Plot: `train_1.png`  
-  - Shows loss slowly decreasing but not converging to a near-zero value
+- Result: Final training accuracy **75%** on XOR (3/4 points correct); loss decreases slowly, plotted in `train_1.png`
 
 ### v0.2 – Improved model (100% accuracy)
 
-Refinements:
+- Switched hidden activation to **tanh**, loss to **binary cross-entropy**, and initialization to **Xavier-style**
+- Added runtime shape assertions in `Dense` and `NeuralNetwork`
+- Result: Final training accuracy **100%** on XOR (4/4 points correct), plotted in `train_final.png`
 
-- Switched hidden activation to **tanh**  
-- Kept **sigmoid** for the output layer  
-- Switched loss to **binary cross-entropy (BCE)** for sigmoid outputs  
-- Updated `Dense` layer to use a **Xavier-style initialization** for more stable gradients  
-- Added runtime assertions in `Dense.forward`, `Dense.backward`, and `NeuralNetwork.backward` to check shapes and ensure the forward pass runs before backprop
+### v0.3 – Portfolio refinement (reproducibility, visualization, packaging, CI)
 
-Result:
-
-- Training loss now decreases significantly and converges  
-- Final training accuracy: **100%** on XOR (4/4 points correct)  
-- Plot: `train_final.png`  
-  - Shows a clear downward trend in loss as the network learns XOR
-
-You can find the corresponding snapshots in Git history:
-
-- `v0.1`: initial MLP implementation with MSE and ReLU  
-- `v0.2`: BCE + tanh + improved initialization and assertions
+- **Reproducible training**: `train_xor.py` now has a full CLI (`--hidden-dim`, `--epochs`, `--learning-rate`, `--seed`, etc.) and saves its plots via `plt.savefig()` instead of only `plt.show()`, so every plot in this repo can be regenerated exactly from the tracked code.
+- **Decision-boundary visualization**: `nn_numpy/visualize.py` renders the model's learned decision boundary over a 2D grid, for both XOR and the new toy datasets.
+- **New toy datasets**: `nn_numpy/datasets.py` gained `load_circles()` and `load_moons()` (pure NumPy, no scikit-learn), trainable via the new `train_toy.py` entry point.
+- **Test suite**: 22 pytest tests, including numerical gradient checks for every activation, the loss function, the `Dense` layer, and the full network—not just accuracy checks.
+- **Packaging + public API**: `pyproject.toml` makes the project `pip install`-able; `nn_numpy/__init__.py` now exposes a clean public API (`NeuralNetwork`, `Dense`, `load_xor`, `load_circles`, `load_moons`, `plot_decision_boundary`).
+- **CI**: GitHub Actions runs the full test suite on Python 3.10–3.12 on every push and pull request.
 
 ---
 
 ## Training curves
-
-Below are the loss curves for the two main versions of the model:
 
 - **v0.1 – 75% accuracy (ReLU + MSE)**  
   ![Training loss for v0.1 (XOR, 75% accuracy)](train_1.png)
@@ -162,45 +187,51 @@ Below are the loss curves for the two main versions of the model:
 - **v0.2 – 100% accuracy (tanh + BCE)**  
   ![Training loss for v0.2 (XOR, 100% accuracy)](train_final.png)
 
----
-
-## XOR dataset
-
-The XOR dataset is defined in `nn_numpy/datasets.py` as:
-
-- Inputs:
-
-  \[
-  X = \{(0,0), (0,1), (1,0), (1,1)\}
-  \]
-
-- Labels:
-
-  \[
-  y = \{0, 1, 1, 0\}
-  \]
-
-The network is trained on all four points as a tiny “batch,” which makes it easy to see the effect of the forward and backward passes step by step.
+Run `python train_xor.py` or `python train_toy.py --dataset moons` to regenerate up-to-date loss-curve and decision-boundary plots for the current model.
 
 ---
 
-## Possible extensions
+## Datasets
 
-If you want to extend this project, good next steps include:
+`nn_numpy/datasets.py` provides three toy datasets, all pure NumPy with no external dependency:
 
-- Visualizing the **decision boundary** in the input space on a grid  
-- Swapping out XOR for a slightly larger 2D toy dataset (e.g., circles or moons)  
-- Adding support for more layers (deep MLP) or different activations  
-- Implementing simple **regularization** (L2 weight decay)  
-- Adding lightweight unit tests for `Dense`, activations, and loss functions
+- **XOR** (`load_xor`): the classic 4-point, linearly-inseparable dataset this project was originally built around.
+
+  \[
+  X = \{(0,0), (0,1), (1,0), (1,1)\}, \quad y = \{0, 1, 1, 0\}
+  \]
+
+- **Circles** (`load_circles`): two concentric circles, a standard test for nonlinear classifiers.
+- **Moons** (`load_moons`): two interleaving half-moons.
+
+Both `load_circles` and `load_moons` accept `n_samples`, `noise`, and `seed`, and use an independent `np.random.default_rng` so generating data doesn't disturb the global NumPy random state used for weight initialization.
+
+---
+
+## Implemented extensions
+
+Earlier drafts of this README listed these as ideas for future work. They're now implemented:
+
+- [x] Visualize the decision boundary in the input space on a grid (`nn_numpy/visualize.py`)
+- [x] Swap XOR for a slightly larger 2D toy dataset (circles, moons via `train_toy.py`)
+- [x] Add lightweight unit tests for `Dense`, activations, and loss functions (`tests/`, with numerical gradient checks)
+- [x] Make training runs reproducible and configurable via CLI flags
+- [x] Package the project and add CI
+
+Remaining ideas for further extension:
+
+- Add support for more layers (deep MLP) or additional activation functions
+- Implement simple **regularization** (L2 weight decay)
+- Promote the `ruff` lint job in CI from informational to blocking once the codebase has been reviewed against it once
 
 ---
 
 ## Acknowledgements
 
-This project was developed as a learning exercise with the help of:
+This project was developed as a learning exercise with the help of AI tools, used as assistants rather than as autopilot:
 
-- **Perplexity’s Learn Mode AI tutor**, for step-by-step guidance on neural network concepts, project structure, and implementation details.
+- **Perplexity's Learn Mode AI tutor**, for step-by-step guidance on neural network concepts, project structure, and implementation details in the original v0.1/v0.2 versions.
 - **GitHub Copilot**, for in-editor suggestions and refinements, including improvements to gradient scaling, weight initialization, and runtime assertions.
+- **Perplexity**, for the v0.3 portfolio-refinement pass: reviewing the repository for issues, and implementing the reproducibility fixes, decision-boundary visualization, toy datasets, test suite, packaging, and CI described above—verified locally (tests run, plots regenerated, package installed) before every change was pushed.
 
-Both tools were used as assistants while keeping full understanding and control of the final code and architecture.
+Across all versions, the underlying math, architecture decisions, and final code were reviewed and understood by the author rather than accepted blindly.
